@@ -30,12 +30,54 @@ Usage:
     so it inherits the current environment (GHIDRA_INSTALL_DIR, etc.).
 """
 
+import json
 import os
 import sys
+from typing import Annotated, Any
 
+from fastmcp import Context
 from fastmcp.client.transports import StdioTransport
 from fastmcp.server import create_proxy
 from fastmcp.server.transforms.search import BM25SearchTransform
+from fastmcp.tools import Tool
+
+
+class CoercingBM25SearchTransform(BM25SearchTransform):
+    """BM25 search transform whose ``call_tool`` also accepts ``arguments`` as a
+    JSON string, not just an object.
+
+    Some MCP clients/models (e.g. opencode + qwen3.7-plus) serialize the
+    ``call_tool`` ``arguments`` value as a JSON string. FastMCP's stock
+    ``call_tool`` types it as ``dict | None``, so a string fails pydantic
+    validation with ``Input should be a valid dictionary``. This subclass
+    ``json.loads`` a string argument before forwarding; dict/None are unchanged.
+    """
+
+    def _make_call_tool(self) -> Tool:
+        transform = self
+
+        async def call_tool(
+            name: Annotated[str, "The name of the tool to call"],
+            arguments: Annotated[
+                dict[str, Any] | str | None,
+                "Arguments to pass to the tool (object, or a JSON string)",
+            ] = None,
+            ctx: Context = None,  # type: ignore[assignment]
+        ):
+            """Call a tool by name with the given arguments.
+
+            Use this to execute tools discovered via search_tools.
+            """
+            if isinstance(arguments, str):
+                arguments = json.loads(arguments) if arguments.strip() else None
+            if name in {transform._call_tool_name, transform._search_tool_name}:
+                raise ValueError(
+                    f"'{name}' is a synthetic search tool and cannot be called "
+                    "via the call_tool proxy"
+                )
+            return await ctx.fastmcp.call_tool(name, arguments)
+
+        return Tool.from_function(fn=call_tool, name=self._call_tool_name)
 
 
 def main() -> None:
@@ -56,7 +98,7 @@ def main() -> None:
         transport,
         name="pyghidra-search",
         transforms=[
-            BM25SearchTransform(
+            CoercingBM25SearchTransform(
                 max_results=5,
                 always_visible=["list_project_binaries", "import_binary"],
             )
