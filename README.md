@@ -278,6 +278,12 @@ for what it needs instead of receiving the whole catalog. Clients that already
 lazy-load tools (e.g. Claude Code) don't need this; the benefit is largest for
 clients that load the full catalog eagerly (e.g. opencode, Cline, Cursor).
 
+`call_tool` accepts its `arguments` as either an object or a JSON string — some
+clients/models (e.g. opencode + qwen3.7-plus) serialize it as a string, which a
+stock `BM25SearchTransform` would reject with `Input should be a valid
+dictionary`. The proxy uses a `CoercingBM25SearchTransform` that decodes a
+string argument before dispatch.
+
 ## CLI Client
 
 For a more interactive command-line experience, you can use the separate **pyghidra-mcp-cli** package, which provides a user-friendly interface for interacting with a running pyghidra-mcp server.
