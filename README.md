@@ -267,6 +267,35 @@ docker run -i --rm ghcr.io/clearbluejar/pyghidra-mcp -t stdio
 
 This keeps the default server usable for LLM agents, IDE integrations, and automation without exposing unnecessary tool surface or GUI-only controls in headless sessions.
 
+### Tool Search (optional)
+
+Some MCP clients send every tool definition to the model on each request, which
+can add several thousand tokens of context before you've asked anything. For
+those clients, `contrib/pyghidra_search_proxy.py` runs `pyghidra-mcp` behind a
+[FastMCP](https://gofastmcp.com) `BM25SearchTransform`: clients see only
+`search_tools`, `call_tool`, and the always-visible `list_project_binaries` /
+`import_binary`, and discover everything else on demand. This drops the
+advertised tool definitions from ~5,800 tokens to a few hundred.
+
+```bash
+pip install 'pyghidra-mcp[search]'   # adds fastmcp
+
+# Point your MCP client at the proxy instead of pyghidra-mcp; args are
+# forwarded to the backend unchanged:
+python contrib/pyghidra_search_proxy.py --project-path /path/to/project
+```
+
+The underlying tools remain fully callable via `call_tool`; the model searches
+for what it needs instead of receiving the whole catalog. Clients that already
+lazy-load tools (e.g. Claude Code) don't need this; the benefit is largest for
+clients that load the full catalog eagerly (e.g. opencode, Cline, Cursor).
+
+`call_tool` accepts its `arguments` as either an object or a JSON string — some
+clients/models (e.g. opencode + qwen3.7-plus) serialize it as a string, which a
+stock `BM25SearchTransform` would reject with `Input should be a valid
+dictionary`. The proxy uses a `CoercingBM25SearchTransform` that decodes a
+string argument before dispatch.
+
 ## CLI Client
 
 For a more interactive command-line experience, you can use the separate **pyghidra-mcp-cli** package, which provides a user-friendly interface for interacting with a running pyghidra-mcp server.
