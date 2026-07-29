@@ -637,19 +637,55 @@ https://github.com/user-attachments/assets/3d56ea08-ed2d-471d-9ed2-556fb8ee4c95
 
 #### With `uvx`
 
-You can run `pyghidra-mcp` and `mcpo` together using `uvx`:
+You can run `pyghidra-mcp` and `mcpo` together using `uvx`. Bind to loopback
+unless you intentionally configure authentication for remote access:
 
 ```bash
-uvx mcpo -- \
+uvx mcpo --host 127.0.0.1 --port 1337 -- \
   pyghidra-mcp /bin/ls
 ```
+
+Once Ghidra finishes loading and analyzing the binary:
+
+- Swagger UI: <http://localhost:1337/docs>
+- OpenAPI schema: <http://localhost:1337/openapi.json>
+
+MCPO generates routes for the tools advertised by the MCP server:
+`/search_tools`, `/call_tool`, `/list_project_binaries`, and
+`/list_project_binary_metadata`. Tools found through `search_tools` can be
+invoked through `/call_tool`; its `arguments` field accepts an object or a
+JSON-encoded object.
+
+Smoke-test the generated API:
+
+```bash
+curl http://localhost:1337/openapi.json
+
+curl -X POST http://localhost:1337/list_project_binaries \
+  -H 'Content-Type: application/json' \
+  -d '{}'
+
+curl -X POST http://localhost:1337/call_tool \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "list_imports",
+    "arguments": {
+      "binary_name": "/ls-cf53cb",
+      "limit": 2
+    }
+  }'
+```
+
+Replace `/ls-cf53cb` with the name returned by
+`/list_project_binaries`.
 
 #### With Docker
 
 You can combine mcpo with Docker:
 
 ```bash
-uvx mcpo -- docker run -i --rm ghcr.io/clearbluejar/pyghidra-mcp /bin/ls
+uvx mcpo --host 127.0.0.1 --port 1337 -- \
+  docker run -i --rm ghcr.io/clearbluejar/pyghidra-mcp /bin/ls
 ```
 
 ### Standard Input/Output (stdio)
