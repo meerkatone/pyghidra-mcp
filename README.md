@@ -43,6 +43,12 @@ Yes, the original [ghidra-mcp](https://github.com/LaurieWired/GhidraMCP) is fant
 
 This project provides a Python-first experience optimized for local development, headless environments, and testable workflows.
 
+## MCP Protocol Compatibility
+
+`pyghidra-mcp` uses FastMCP 4 and MCP Python SDK 2. It supports the sessionless
+MCP `2026-07-28` protocol over stdio and Streamable HTTP while retaining
+compatibility with older handshake-era clients.
+
 ## Setup Diagrams
 
 ### How the Pieces Connect
@@ -248,6 +254,12 @@ docker run -i --rm ghcr.io/clearbluejar/pyghidra-mcp -t stdio
 
 `pyghidra-mcp` keeps the MCP surface intentionally narrow so agent clients spend fewer tokens on tool discovery and argument selection.
 
+- **Tool search**: clients initially see `search_tools`, `call_tool`,
+  `list_project_binaries`, and `list_project_binary_metadata`. Other tools are
+  discovered through BM25 search and remain directly callable by name.
+- **Flexible proxy arguments**: `call_tool.arguments` accepts either an object
+  or a JSON-encoded object for compatibility with clients that serialize nested
+  tool arguments.
 - **Short tool descriptions**: MCP tool docstrings are kept compact so FastMCP tool schemas stay small and cheap to send to models.
 - **Context discipline**: tools return focused structured data instead of dumping whole-program context by default. Decompilation, symbol search, and cross-reference results are shaped to support iterative analysis rather than one large response.
 - **GUI tools only when relevant**: GUI-only controls such as `open_program_in_gui`, `list_open_programs`, `set_current_program`, and `goto` are only exposed when the server is started with `--gui`.
@@ -773,6 +785,9 @@ If you're adding a new tool or integration, here’s the recommended workflow:
 - Write an integration test that exercises your tool using a `StdioClient` instance. Place it in `tests/integration/`.
 - Extend concurrent testing by adding a call to your tool in `tests/integration/test_concurrent_streamable_client.py`.
 - Run make test and make format to ensure your changes pass all tests and conform to linting rules.
+
+Protocol-focused unit tests also verify MCP `2026-07-28` negotiation, the
+tool-search surface, and JSON-string `call_tool` arguments.
 
 This ensures consistency across the codebase and helps us maintain robust, scalable tooling for reverse engineering workflows.
 

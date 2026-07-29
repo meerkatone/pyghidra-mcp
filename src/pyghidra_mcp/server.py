@@ -11,8 +11,9 @@ from pathlib import Path
 import click
 import pyghidra
 from click_option_group import optgroup
-from mcp.server import Server
-from mcp.server.fastmcp import FastMCP
+from fastmcp import Context, FastMCP
+from fastmcp.server.transforms.search import BM25SearchTransform
+from fastmcp.tools import Tool
 
 from pyghidra_mcp import __version__, mcp_tools
 from pyghidra_mcp.context import PyGhidraContext
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 # Init Pyghidra
 # ---------------------------------------------------------------------------------
 @asynccontextmanager
-async def server_lifespan(server: Server) -> AsyncIterator[MCPContext]:
+async def server_lifespan(server: FastMCP) -> AsyncIterator[MCPContext]:
     """Manage server startup and shutdown lifecycle."""
     try:
         yield server._pyghidra_context  # type: ignore
@@ -41,7 +42,42 @@ async def server_lifespan(server: Server) -> AsyncIterator[MCPContext]:
         pass
 
 
-mcp = FastMCP("pyghidra-mcp", lifespan=server_lifespan)  # type: ignore
+class CoercingBM25SearchTransform(BM25SearchTransform):
+    """Accept object or JSON-string arguments in the synthetic call_tool."""
+
+    def _make_call_tool(self) -> Tool:
+        transform = self
+
+        async def call_tool(
+            name: str,
+            arguments: dict | str | None = None,
+            ctx: Context | None = None,
+        ):
+            """Call a tool discovered with search_tools."""
+            if isinstance(arguments, str):
+                decoded = json.loads(arguments) if arguments.strip() else None
+                if decoded is not None and not isinstance(decoded, dict):
+                    raise ValueError("arguments JSON must decode to an object or null")
+                arguments = decoded
+            if name in {transform._call_tool_name, transform._search_tool_name}:
+                raise ValueError(f"'{name}' is a synthetic search tool")
+            if ctx is None:
+                raise RuntimeError("MCP context was not injected")
+            return await ctx.fastmcp.call_tool(name, arguments)
+
+        return Tool.from_function(fn=call_tool, name=self._call_tool_name)
+
+
+mcp = FastMCP(
+    "pyghidra-mcp",
+    lifespan=server_lifespan,
+    transforms=[
+        CoercingBM25SearchTransform(
+            max_results=5,
+            always_visible=["list_project_binaries", "list_project_binary_metadata"],
+        )
+    ],
+)  # type: ignore
 
 
 def register_common_tools(server: FastMCP) -> None:
@@ -198,11 +234,11 @@ def init_gui_context(
     return mcp
 
 
-def run_mcp_server(mcp: FastMCP, transport: str) -> None:
+def run_mcp_server(mcp: FastMCP, transport: str, *, host: str, port: int) -> None:
     if transport == "stdio":
         mcp.run(transport="stdio")
     elif transport in ["streamable-http", "http"]:
-        mcp.run(transport="streamable-http")
+        mcp.run(transport="streamable-http", host=host, port=port)
     elif transport == "sse":
         import warnings
 
@@ -212,7 +248,7 @@ def run_mcp_server(mcp: FastMCP, transport: str) -> None:
             DeprecationWarning,
             stacklevel=1,
         )
-        mcp.run(transport="sse")
+        mcp.run(transport="sse", host=host, port=port)
     else:
         raise ValueError(f"Invalid transport: {transport}")
 
@@ -404,9 +440,6 @@ def main(
     project_directory = str(project_spec.project_directory)
     project_name = project_spec.project_name
     pyghidra_mcp_dir = project_spec.pyghidra_mcp_dir
-    mcp.settings.port = port
-    mcp.settings.host = host
-
     if gui:
         if transport == "stdio":
             raise click.UsageError("--gui requires --transport streamable-http or --transport http")
@@ -424,7 +457,7 @@ def main(
         def gui_server_thread() -> None:
             try:
                 init_gui_context(mcp=mcp, project_spec=project_spec, input_paths=input_paths)
-                run_mcp_server(mcp, transport)
+                run_mcp_server(mcp, transport, host=host, port=port)
             except BaseException as exc:
                 gui_server_error.append(exc)
                 logger.exception("GUI MCP server failed during startup or runtime.")
@@ -471,7 +504,7 @@ def main(
     )
 
     try:
-        run_mcp_server(mcp, transport)
+        run_mcp_server(mcp, transport, host=host, port=port)
     finally:
         mcp._pyghidra_context.close()  # type: ignore
 

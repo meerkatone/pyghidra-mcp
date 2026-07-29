@@ -71,7 +71,7 @@ async def _wait_for_http_server(  # noqa: C901
                 )
             try:
                 async with session.get(f"{base_url}/mcp") as response:
-                    if response.status == 406:
+                    if response.status in {400, 406}:
                         return
             except aiohttp.ClientConnectorError:
                 pass
@@ -177,7 +177,7 @@ async def test_gui_smoke(
     try:
         await _wait_for_http_server(base_url, proc, gui_env)
 
-        async with streamable_http_client(f"{base_url}/mcp") as (read, write, _):
+        async with streamable_http_client(f"{base_url}/mcp") as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
 

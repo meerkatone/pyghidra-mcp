@@ -13,7 +13,8 @@ async def test_stdio_client_initialization(server_params):
 
             # Check that we got a proper response
             assert result is not None
-            assert hasattr(result, "protocolVersion")
+            # The low-level SDK client retains handshake-era negotiation.
+            assert str(result.protocol_version) == "2025-11-25"
 
 
 @pytest.mark.asyncio
@@ -29,9 +30,12 @@ async def test_stdio_client_list_tools(server_params):
 
             # Check that we got a response
             assert tools is not None
-            # Check that we have at least the decompile_function tool
-            assert any(tool.name == "decompile_function" for tool in tools.tools)
-            assert any(tool.name == "list_project_binaries" for tool in tools.tools)
+            assert {tool.name for tool in tools.tools} == {
+                "list_project_binaries",
+                "list_project_binary_metadata",
+                "search_tools",
+                "call_tool",
+            }
 
 
 @pytest.mark.asyncio

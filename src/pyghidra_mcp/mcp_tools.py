@@ -9,9 +9,9 @@ import functools
 import logging
 from typing import Literal, cast
 
-from mcp.server.fastmcp import Context
-from mcp.shared.exceptions import McpError
-from mcp.types import INTERNAL_ERROR, INVALID_PARAMS, ErrorData
+from fastmcp import Context
+from mcp.shared.exceptions import MCPError
+from mcp.types import INTERNAL_ERROR, INVALID_PARAMS
 
 from pyghidra_mcp.context_protocol import MCPContext
 from pyghidra_mcp.models import (
@@ -46,10 +46,17 @@ from pyghidra_mcp.tools import GhidraTools
 logger = logging.getLogger(__name__)
 
 
+def _lifespan_context(ctx: Context) -> MCPContext:
+    request_context = ctx.request_context
+    if request_context is None:
+        raise RuntimeError("MCP request context is unavailable")
+    return cast(MCPContext, request_context.lifespan_context)
+
+
 def _require_gui_context(ctx: Context):
     from pyghidra_mcp.gui_context import GuiPyGhidraContext
 
-    pyghidra_context = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     if not isinstance(pyghidra_context, GuiPyGhidraContext):
         raise ValueError("This tool requires pyghidra-mcp to be running with --gui")
     return pyghidra_context
@@ -84,10 +91,10 @@ def mcp_error_handler(func):
 
     def handle_error(e):
         if isinstance(e, ValueError):
-            return McpError(ErrorData(code=INVALID_PARAMS, message=str(e)))
-        if isinstance(e, McpError):
+            return MCPError(code=INVALID_PARAMS, message=str(e))
+        if isinstance(e, MCPError):
             return e
-        return McpError(ErrorData(code=INTERNAL_ERROR, message=f"Error {action}: {e!s}"))
+        return MCPError(code=INTERNAL_ERROR, message=f"Error {action}: {e!s}")
 
     @functools.wraps(func)
     async def async_wrapper(*args, **kwargs):
@@ -126,7 +133,7 @@ async def decompile_function(
     Rich response flags attach callees, strings, and/or xrefs to each result.
     `timeout_sec` applies per target.
     """
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     targets = [name_or_address] if isinstance(name_or_address, str) else name_or_address
@@ -168,7 +175,7 @@ def search_symbols_by_name(
     Set ``functions_only=True`` to search only function symbols
     (excludes labels, variables, classes, namespaces).
     """
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     symbols = tools.search_symbols_by_name(
@@ -194,7 +201,7 @@ def search_code(
     Modes: semantic (vector similarity, default) or literal (exact match).
     Results include both mode counts.
     """
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     return tools.search_code(
@@ -211,14 +218,14 @@ def search_code(
 @mcp_error_handler
 def list_project_binaries(ctx: Context) -> ProgramInfos:
     """List all binaries in the project with their status."""
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     return ProgramInfos(programs=pyghidra_context.list_project_binary_infos())
 
 
 @mcp_error_handler
 def list_project_binary_metadata(binary_name: str, ctx: Context) -> dict:
     """Get binary metadata: architecture, compiler, endianness, hashes, analysis counts."""
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     return program_info.metadata
 
@@ -283,7 +290,7 @@ def rename_function(
     ctx: Context,
 ) -> RenameResponse:
     """Rename a function."""
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     result = _run_for_context(
@@ -303,7 +310,7 @@ def rename_variable(
     ctx: Context,
 ) -> VariableRenameResponse:
     """Rename a parameter or local by exact name."""
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     result = _run_for_context(
@@ -323,7 +330,7 @@ def set_variable_type(
     ctx: Context,
 ) -> VariableTypeResponse:
     """Set a parameter or local type by exact name."""
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     result = _run_for_context(
@@ -342,7 +349,7 @@ def set_function_prototype(
     ctx: Context,
 ) -> FunctionPrototypeResponse:
     """Set a function prototype. Invalid input returns Ghidra's error."""
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     result = _run_for_context(
@@ -362,7 +369,7 @@ def set_comment(
     ctx: Context,
 ) -> CommentResponse:
     """Set a decompiler or listing comment."""
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     result = _run_for_context(
@@ -376,15 +383,13 @@ def set_comment(
 @mcp_error_handler
 async def delete_project_binary(binary_name: str, ctx: Context) -> str:
     """Delete a binary from the project."""
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     if pyghidra_context.delete_program(binary_name):
         return f"Successfully deleted binary: {binary_name}"
     else:
-        raise McpError(
-            ErrorData(
-                code=INVALID_PARAMS,
-                message=f"Binary '{binary_name}' not found or could not be deleted.",
-            )
+        raise MCPError(
+            code=INVALID_PARAMS,
+            message=f"Binary '{binary_name}' not found or could not be deleted.",
         )
 
 
@@ -397,7 +402,7 @@ def list_exports(
     limit: int = 25,
 ) -> ExportInfos:
     """List exported symbols, optionally filtered by regex query."""
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     exports = tools.list_exports(query=query, offset=offset, limit=limit)
@@ -413,7 +418,7 @@ def list_imports(
     limit: int = 25,
 ) -> ImportInfos:
     """List imported symbols, optionally filtered by regex query."""
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     imports = tools.list_imports(query=query, offset=offset, limit=limit)
@@ -429,7 +434,7 @@ def list_xrefs(
     Accepts a single target or a list for batch lookup.
     Suggests close matches on no exact hit.
     """
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     targets = [name_or_address] if isinstance(name_or_address, str) else name_or_address
@@ -451,7 +456,7 @@ def search_strings(
     limit: int = 100,
 ) -> StringSearchResults:
     """Search for strings within a binary."""
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     strings = tools.search_strings(query=query, limit=limit)
@@ -461,7 +466,7 @@ def search_strings(
 @mcp_error_handler
 def read_bytes(binary_name: str, ctx: Context, address: str, size: int = 32) -> BytesReadResult:
     """Read raw bytes at an address. Hex format supported (0x prefix optional)."""
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     return tools.read_bytes(address=address, size=size)
@@ -489,7 +494,7 @@ def disassemble(
         raise ValueError("count must be > 0")
     if count > 200:
         raise ValueError("count must be <= 200")
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     return tools.disassemble(address=address, count=count, include_bytes=include_bytes)
@@ -508,7 +513,7 @@ def gen_callgraph(
     max_run_time: int = 120,
 ) -> CallGraphResult:
     """Generate a MermaidJS call graph for a function."""
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
     return tools.gen_callgraph(
@@ -527,12 +532,13 @@ def gen_callgraph(
 @mcp_error_handler
 def import_binary(binary_path: str, ctx: Context) -> ImportRequestResult:
     """Import a binary into the project from a file path."""
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    pyghidra_context = _lifespan_context(ctx)
     return pyghidra_context.import_binary_backgrounded(binary_path)
+
 
 @mcp_error_handler
 def save(ctx: Context) -> SaveRequestResult:
-    '''Save all programs.'''
-    pyghidra_context: MCPContext = ctx.request_context.lifespan_context
+    """Save all programs."""
+    pyghidra_context = _lifespan_context(ctx)
     pyghidra_context.save()
     return SaveRequestResult()
