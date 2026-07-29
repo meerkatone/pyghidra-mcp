@@ -3025,6 +3025,9 @@ dev = [
     { name = "tomli-w" },
     { name = "uv" },
 ]
+search = [
+    { name = "fastmcp" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -3050,6 +3053,7 @@ requires-dist = [
     { name = "click-option-group", specifier = ">=0.5.9" },
     { name = "fastmcp", specifier = "==4.0.0b1" },
     { name = "fastmcp", marker = "extra == 'dev'", specifier = "==4.0.0b1" },
+    { name = "fastmcp", marker = "extra == 'search'", specifier = ">=3.2.4" },
     { name = "ghidra-stubs", marker = "extra == 'dev'", specifier = ">=11.3.2" },
     { name = "ghidrecomp", specifier = ">=0.5.8" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.0.0" },
@@ -3063,7 +3067,7 @@ requires-dist = [
     { name = "tomli-w", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "uv", marker = "extra == 'dev'", specifier = ">=0.8.11" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["search", "dev"]
 
 [package.metadata.requires-dev]
 dev = [
