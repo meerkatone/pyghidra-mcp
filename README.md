@@ -3,9 +3,9 @@
 </p>
 
 <p align="center">
-  <img align="center" alt="GitHub Workflow Status (with event)" src="https://img.shields.io/github/actions/workflow/status/clearbluejar/pyghidra-mcp/pytest-devcontainer-repo-all.yml?style=for-the-badge&label=pytest">
+  <img align="center" alt="GitHub Workflow Status (with event)" src="https://img.shields.io/github/actions/workflow/status/meerkatone/pyghidra-mcp/pytest-devcontainer-repo-all.yml?style=for-the-badge&label=pytest">
   <img align="center" alt="PyPI - Downloads" src="https://img.shields.io/pypi/dm/pyghidra-mcp?color=yellow&label=PyPI%20downloads&style=for-the-badge">
-  <img align="center" src="https://img.shields.io/github/stars/clearbluejar/pyghidra-mcp?style=for-the-badge">
+  <img align="center" src="https://img.shields.io/github/stars/meerkatone/pyghidra-mcp?style=for-the-badge">
 </p>
 
 # PyGhidra-MCP - Ghidra Model Context Protocol Server
@@ -28,6 +28,20 @@ With `pyghidra-mcp`, Ghidra becomes an intelligent backend—ready to respond to
 
 > [!NOTE]
 > This beta project is under active development. We would love your feedback, bug reports, feature requests, and code.
+
+## Fork status
+
+This is the [`meerkatone/pyghidra-mcp`](https://github.com/meerkatone/pyghidra-mcp)
+fork of [`clearbluejar/pyghidra-mcp`](https://github.com/clearbluejar/pyghidra-mcp).
+It includes the latest upstream `main` changes plus:
+
+- FastMCP `4.0.0b2` and MCP Python SDK 2
+- sessionless MCP `2026-07-28` support
+- built-in BM25 tool search with a reduced advertised tool surface
+- `call_tool` support for object and JSON-string arguments
+
+The fork tracks upstream while retaining these protocol and agent-context
+optimizations.
 
 ## Yet another Ghidra MCP?
 
@@ -172,6 +186,7 @@ flowchart TD
 
 - [PyGhidra-MCP - Ghidra Model Context Protocol Server](#pyghidra-mcp---ghidra-model-context-protocol-server)
     - [Overview](#overview)
+  - [Fork status](#fork-status)
   - [Yet another Ghidra MCP?](#yet-another-ghidra-mcp)
   - [Setup Diagrams](#setup-diagrams)
     - [How the Pieces Connect](#how-the-pieces-connect)
@@ -224,16 +239,27 @@ flowchart TD
 
 ## Getting started
 
-Run the [Python package](https://pypi.org/p/pyghidra-mcp) as a CLI command using [`uv`](https://docs.astral.sh/uv/guides/tools/):
+Run this fork directly from GitHub using
+[`uv`](https://docs.astral.sh/uv/guides/tools/):
 
 ```bash
-uvx pyghidra-mcp # Creates pyghidra_mcp_projects directory by default
+uvx --from git+https://github.com/meerkatone/pyghidra-mcp.git pyghidra-mcp
 ```
+
+For a persistent local command:
+
+```bash
+uv tool install --from git+https://github.com/meerkatone/pyghidra-mcp.git pyghidra-mcp
+```
+
+Both commands create `pyghidra_mcp_projects` in the current directory by
+default. The PyPI package may track the upstream project and does not
+necessarily contain this fork's FastMCP 4 changes.
 
 To launch and control a live Ghidra GUI from MCP, use `--gui` with `streamable-http`:
 
 ```bash
-uvx pyghidra-mcp \
+uvx --from git+https://github.com/meerkatone/pyghidra-mcp.git pyghidra-mcp \
   --gui \
   --transport streamable-http \
   --host 127.0.0.1 \
@@ -245,7 +271,9 @@ uvx pyghidra-mcp \
 > [!IMPORTANT]
 > `--gui` launches Ghidra through `pyghidra-mcp`. It does not attach to an already-running external Ghidra instance.
 
-Or, run as a [Docker container](https://ghcr.io/clearbluejar/pyghidra-mcp):
+Alternatively, the upstream project publishes a
+[Docker container](https://ghcr.io/clearbluejar/pyghidra-mcp). It may not
+include this fork's changes:
 
 ```bash
 docker run -i --rm ghcr.io/clearbluejar/pyghidra-mcp -t stdio
@@ -587,7 +615,7 @@ These tools are only available when `pyghidra-mcp` is started with `--gui` and c
 This Python package is published to PyPI as [pyghidra-mcp](https://pypi.org/p/pyghidra-mcp) and can be installed and run with [pip](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/#install-a-package), [pipx](https://pipx.pypa.io/), [uv](https://docs.astral.sh/uv/), [poetry](https://python-poetry.org/), or any Python package manager.
 
 ```text
-$ uvx pyghidra-mcp --help
+$ pyghidra-mcp --help
 Usage: pyghidra-mcp [OPTIONS] [INPUT_PATHS]...
 
   PyGhidra Command-Line MCP server
@@ -796,7 +824,7 @@ Add the following JSON block to your `claude_desktop_config.json` file:
             "command": "uvx",
             "args": [
                 "--from",
-                "git+https://github.com/clearbluejar/pyghidra-mcp",
+                "git+https://github.com/meerkatone/pyghidra-mcp.git",
                 "pyghidra-mcp",
                 "--project-path",
                 "/tmp/pyghidra", // or path to writeable directory
@@ -847,4 +875,5 @@ This ensures consistency across the codebase and helps us maintain robust, scala
 
 ______________________________________________________________________
 
-Made with ❤️ by the [PyGhidra-MCP Team](https://github.com/clearbluejar/pyghidra-mcp)
+Based on [clearbluejar/pyghidra-mcp](https://github.com/clearbluejar/pyghidra-mcp)
+and maintained in the [meerkatone fork](https://github.com/meerkatone/pyghidra-mcp).
