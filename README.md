@@ -45,9 +45,10 @@ This project provides a Python-first experience optimized for local development,
 
 ## MCP Protocol Compatibility
 
-`pyghidra-mcp` uses FastMCP 4 and MCP Python SDK 2. It supports the sessionless
-MCP `2026-07-28` protocol over stdio and Streamable HTTP while retaining
-compatibility with older handshake-era clients.
+`pyghidra-mcp` pins FastMCP 4.0.0b2 and uses MCP Python SDK 2. It supports the
+sessionless MCP `2026-07-28` protocol over stdio and Streamable HTTP while
+retaining compatibility with older handshake-era clients. The exact FastMCP
+pin is intentional while FastMCP 4 remains in beta.
 
 ## Setup Diagrams
 

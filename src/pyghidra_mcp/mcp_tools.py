@@ -44,6 +44,7 @@ from pyghidra_mcp.models import (
 from pyghidra_mcp.tools import GhidraTools
 
 logger = logging.getLogger(__name__)
+DECOMPILE_TIMEOUT_GRACE_SECONDS = 1.0
 
 
 def _lifespan_context(ctx: Context) -> MCPContext:
@@ -133,6 +134,9 @@ async def decompile_function(
     Rich response flags attach callees, strings, and/or xrefs to each result.
     `timeout_sec` applies per target.
     """
+    if timeout_sec <= 0:
+        raise ValueError("timeout_sec must be greater than zero")
+
     pyghidra_context = _lifespan_context(ctx)
     program_info = pyghidra_context.get_program_info(binary_name)
     tools = GhidraTools(program_info)
@@ -151,8 +155,19 @@ async def decompile_function(
 
     for target in targets:
         try:
-            result = await asyncio.to_thread(_decompile_target, target)
+            result = await asyncio.wait_for(
+                asyncio.to_thread(_decompile_target, target),
+                timeout=timeout_sec + DECOMPILE_TIMEOUT_GRACE_SECONDS,
+            )
             results.append(result)
+        except asyncio.TimeoutError:
+            results.append(
+                DecompiledFunction(
+                    name=target,
+                    code="",
+                    error=f"Decompilation timed out after {timeout_sec:g} seconds",
+                )
+            )
         except Exception as e:
             results.append(DecompiledFunction(name=target, code="", error=str(e)))
     return results
@@ -480,15 +495,10 @@ def disassemble(
     count: int = 20,
     include_bytes: bool = False,
 ) -> DisassembleResult:
-    """Disassemble instructions at an address. Returns up to `count` instructions (max 200).
+    """Disassemble raw instructions at any address, like objdump.
 
-    Returns a compact, whitespace-aligned text listing in `listing` (one
-    instruction per line: address, mnemonic, operands).
-    Set `include_bytes=True` to also include the raw instruction bytes (hex) as a
-    column.
-
-    Useful for inspecting raw assembly at any address without needing to know
-    the function name or entry point.
+    `listing` is one instruction per line: address, mnemonic, operands, plus a hex
+    bytes column if `include_bytes=True`. Returns up to `count` instructions (max 200).
     """
     if count <= 0:
         raise ValueError("count must be > 0")
