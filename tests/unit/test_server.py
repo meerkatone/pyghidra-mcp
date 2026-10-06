@@ -36,6 +36,22 @@ def _common_kwargs():
     }
 
 
+def test_dependency_diagnostics_leave_protocol_stdout_untouched(monkeypatch, capsys):
+    from ghidrecomp import utility  # type: ignore[import-untyped]
+
+    monkeypatch.setattr(utility, "print", print, raising=False)
+    server.route_dependency_diagnostics()
+    worker = threading.Thread(target=utility.print, args=("Ghidrecomp diagnostic",))
+    worker.start()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    print('{"jsonrpc":"2.0"}')
+
+    captured = capsys.readouterr()
+    assert captured.out == '{"jsonrpc":"2.0"}\n'
+    assert captured.err == "Ghidrecomp diagnostic\n"
+
+
 def test_init_pyghidra_context_skips_full_analysis_for_existing_project(monkeypatch):
     fake_context = Mock()
     fake_context.import_binaries.return_value = []

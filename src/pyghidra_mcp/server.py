@@ -190,6 +190,20 @@ def register_gui_tools(server: FastMCP) -> None:
 register_common_tools(mcp)
 
 
+def _print_dependency_diagnostic(*args: object, **kwargs) -> None:
+    kwargs["file"] = sys.stderr
+    print(*args, **kwargs)
+
+
+def route_dependency_diagnostics() -> None:
+    """Keep ghidrecomp utility diagnostics off the MCP protocol stream."""
+    from ghidrecomp import utility  # type: ignore[import-untyped]
+
+    # A module-local print override also covers background analysis workers,
+    # without redirecting stdout used concurrently by MCP responses.
+    utility.print = _print_dependency_diagnostic  # type: ignore[attr-defined]
+
+
 def init_pyghidra_context(  # noqa: C901
     mcp: FastMCP,
     *,
@@ -212,6 +226,8 @@ def init_pyghidra_context(  # noqa: C901
     symbols_path: str | None,
     sym_file_path: str | None,
 ) -> FastMCP:
+    if transport == "stdio":
+        route_dependency_diagnostics()
     bin_paths: list[str | Path] = [Path(p) for p in input_paths]
     logger.info(f"Project: {project_name}")
     logger.info(f"Project: Location {project_directory}")

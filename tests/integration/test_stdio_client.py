@@ -4,7 +4,7 @@ from mcp.client.stdio import stdio_client
 
 
 @pytest.mark.asyncio
-async def test_stdio_client_initialization(server_params):
+async def test_stdio_client_initialization(server_params, caplog):
     """Test stdio client initialization."""
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:
@@ -15,6 +15,8 @@ async def test_stdio_client_initialization(server_params):
             assert result is not None
             # The low-level SDK client retains handshake-era negotiation.
             assert str(result.protocol_version) == "2025-11-25"
+
+    assert not any("Failed to parse JSONRPC message" in record.message for record in caplog.records)
 
 
 @pytest.mark.asyncio
