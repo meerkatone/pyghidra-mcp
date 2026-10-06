@@ -74,8 +74,29 @@ class FakeMcpResult:
     def __init__(self, payload):
         self.payload = payload
 
-    def model_dump(self):
+    def model_dump(self, **kwargs):
         return {"structuredContent": self.payload}
+
+
+def test_client_extracts_sdk_v2_structured_result():
+    from mcp.types import CallToolResult
+
+    from pyghidra_mcp_cli.client import PyGhidraMcpClient
+
+    result = CallToolResult(content=[], structured_content={"programs": []})
+    assert PyGhidraMcpClient()._extract_result(result) == {"programs": []}
+
+
+def test_client_raises_for_sdk_v2_tool_error():
+    from mcp.types import CallToolResult, TextContent
+
+    from pyghidra_mcp_cli.client import ClientError, PyGhidraMcpClient
+
+    result = CallToolResult(
+        is_error=True, content=[TextContent(type="text", text="Binary missing")]
+    )
+    with pytest.raises(ClientError, match="Binary missing"):
+        PyGhidraMcpClient()._extract_result(result)
 
 
 @pytest.mark.asyncio

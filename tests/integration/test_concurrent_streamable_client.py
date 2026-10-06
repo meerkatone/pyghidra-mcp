@@ -265,7 +265,8 @@ async def test_concurrent_streamable_client_invocations(streamable_server):
 
         # Decompiled function
         decompiled_func_result = json.loads(client_responses[0].content[0].text)
-        decompiled_function = DecompiledFunction(**decompiled_func_result)
+        assert len(decompiled_func_result) == 1
+        decompiled_function = DecompiledFunction(**decompiled_func_result[0])
         assert _MAIN_FUNC_NAME in decompiled_function.name
         assert _MAIN_FUNC_NAME in decompiled_function.code
 
@@ -309,7 +310,8 @@ async def test_concurrent_streamable_client_invocations(streamable_server):
 
         # List cross-references
         cross_references_result = json.loads(client_responses[6].content[0].text)
-        cross_reference_infos = CrossReferenceInfos(**cross_references_result)
+        assert len(cross_references_result) == 1
+        cross_reference_infos = CrossReferenceInfos(**cross_references_result[0])
         assert len(cross_reference_infos.cross_references) > 0
         assert any(
             ref.function_name == _MAIN_FUNC_NAME for ref in cross_reference_infos.cross_references
@@ -391,6 +393,7 @@ async def test_concurrent_streamable_client_invocations(streamable_server):
     assert all(hasattr(symbol, "is_thunk") for symbol in symbol_search.symbols)
 
     decompile_result = json.loads(decompile_response.content[0].text)
-    decompiled = DecompiledFunction(**decompile_result)
+    assert len(decompile_result) == 1
+    decompiled = DecompiledFunction(**decompile_result[0])
     assert renamed_name in decompiled.name
     assert renamed_name in decompiled.code

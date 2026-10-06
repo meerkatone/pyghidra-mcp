@@ -6,8 +6,10 @@ import time
 
 import aiohttp
 import pytest
+from fastmcp import Client
 from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from mcp.types import TextContent
 
 from pyghidra_mcp.context import PyGhidraContext
 from pyghidra_mcp.models import DecompiledFunction
@@ -109,3 +111,40 @@ async def test_streamable_client_smoke(streamable_server, main_func_name):
             assert len(content[0].keys()) == len(DecompiledFunction.model_fields.keys())
             assert f"{name}(" in content[0]["code"]
             print(json.dumps(content, indent=2))
+
+
+@pytest.mark.asyncio
+async def test_modern_client_discovers_and_calls_decompiler(streamable_server, main_func_name):
+    streamable_binary, streamable_base_url = streamable_server
+    binary_name = PyGhidraContext._gen_unique_bin_name(streamable_binary)
+
+    async with Client(f"{streamable_base_url}/mcp") as client:
+        assert str(client.protocol_version) == "2026-07-28"
+        tools = await client.list_tools()
+        assert {tool.name for tool in tools} == {
+            "list_project_binaries",
+            "list_project_binary_metadata",
+            "search_tools",
+            "call_tool",
+        }
+
+        search = await client.call_tool("search_tools", {"query": "decompile function"})
+        assert search.is_error is False
+        assert any(
+            isinstance(item, TextContent) and "decompile_function" in item.text
+            for item in search.content
+        )
+
+        result = await client.call_tool(
+            "call_tool",
+            {
+                "name": "decompile_function",
+                "arguments": json.dumps(
+                    {"binary_name": binary_name, "name_or_address": main_func_name}
+                ),
+            },
+        )
+        assert result.is_error is False
+        assert isinstance(result.content[0], TextContent)
+        content = json.loads(result.content[0].text)
+        assert f"{main_func_name}(" in content[0]["code"]

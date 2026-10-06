@@ -12,6 +12,7 @@ Usage:
 
 import asyncio
 import json
+from contextlib import AbstractAsyncContextManager
 from typing import Any
 
 from mcp import ClientSession
@@ -64,8 +65,8 @@ class PyGhidraMcpClient:
         self.host = host
         self.port = port
         self._session: ClientSession | None = None
-        self._session_cm = None
-        self._transport_cm = None
+        self._session_cm: ClientSession | None = None
+        self._transport_cm: AbstractAsyncContextManager[tuple[Any, Any]] | None = None
         self._connected = False
 
     async def __aenter__(self):
@@ -88,7 +89,8 @@ class PyGhidraMcpClient:
 
         transport_gen = streamable_http_client(url)
         try:
-            read, write, _ = await asyncio.wait_for(transport_gen.__aenter__(), timeout=5.0)
+            # AnyIO's transport task group must open and close in the same task.
+            read, write = await transport_gen.__aenter__()
         except asyncio.TimeoutError:
             try:
                 await transport_gen.__aexit__(None, None, None)
@@ -122,10 +124,17 @@ class PyGhidraMcpClient:
             ) from e
 
         self._transport_cm = transport_gen
-        self._session_cm = ClientSession(read, write)
-        self._session = await self._session_cm.__aenter__()
-        await self._session.initialize()
-        self._connected = True
+        try:
+            self._session_cm = ClientSession(read, write)
+            self._session = await self._session_cm.__aenter__()
+            self._connected = True
+            await asyncio.wait_for(self._session.initialize(), timeout=5.0)
+        except Exception as e:
+            await self._close_internal()
+            raise ServerNotRunningError(
+                f"Cannot initialize pyghidra-mcp server at {url}: {e}\n\n"
+                f"{get_server_start_message()}"
+            ) from e
 
     async def _close_internal(self) -> None:
         """Internal cleanup logic - close the connection and cleanup resources."""
@@ -147,7 +156,7 @@ class PyGhidraMcpClient:
 
     def _extract_result(self, result) -> dict[str, Any]:
         """Extract data from MCP result, handling structuredContent and errors."""
-        result_dict = result.model_dump()
+        result_dict = result.model_dump(by_alias=True)
 
         if result_dict.get("isError"):
             content = result_dict.get("content", [])
